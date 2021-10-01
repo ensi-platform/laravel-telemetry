@@ -5,6 +5,8 @@ return [
     'namespace' => env('TELEMETRY_NAMESPACE', 'laravel_app'),
 
     'push-gateway' => env('TELEMETRY_PUSH_GATEWAY', 'http://localhost:9091'),
+    'redis-host' => env('TELEMETRY_REDIS_HOST'),
+    'redis-port' => env('TELEMETRY_REDIS_PORT', '6379'),
 
     'http_percentiles' => env("TELEMETRY_HTTP_PERCENTILES", '[0.5, 0.95, 0.99]'),
     'http_percentile_window' => env("TELEMETRY_HTTP_PERCENTILE_WINDOW", 60),

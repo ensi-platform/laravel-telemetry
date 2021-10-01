@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Prometheus\CollectorRegistry;
 use Prometheus\RenderTextFormat;
 use Prometheus\Storage\APC;
+use Prometheus\Storage\Redis;
 use PrometheusPushGateway\PushGateway;
 
 class Metrics
@@ -34,9 +35,22 @@ class Metrics
         return preg_replace("/\?,\s?/", "", $query);
     }
 
+    public static function cliMetricsEnabled(): bool
+    {
+        return !!config('telemetry.redis-host');
+    }
+
     public function __construct()
     {
-        $this->prom = new CollectorRegistry(new APC());
+        if (php_sapi_name() == "cli" && self::cliMetricsEnabled()) {
+            $metricsStorage = new Redis([
+                'host' => config('telemetry.redis-host'),
+                'port' => config('telemetry.redis-port'),
+            ]);
+        } else {
+            $metricsStorage = new APC();
+        }
+        $this->prom = new CollectorRegistry($metricsStorage);
     }
 
     public function dumpTxt(): string
@@ -116,12 +130,33 @@ class Metrics
         $summary->observe($duration, [$txnId]);
 
         $counter = $this->prom->getOrRegisterCounter(
-            "ensi_ms",
+            config('telemetry.namespace'),
             "cli",
             "Executions count",
             ["txnId"]
         );
         $counter->inc([$txnId]);
+    }
+
+    public function mainQueueTransaction($jobName, $duration)
+    {
+        $summary = $this->prom->getOrRegisterSummary(
+            config('telemetry.namespace'),
+            "queue_perc",
+            'Execution time, s',
+            ["txnId"],
+            config('telemetry.cli_percentile_window'),
+            json_decode(config('telemetry.cli_percentiles')),
+        );
+        $summary->observe($duration, [$jobName]);
+
+        $counter = $this->prom->getOrRegisterCounter(
+            config('telemetry.namespace'),
+            "queue",
+            "Executions count",
+            ["txnId"]
+        );
+        $counter->inc([$jobName]);
     }
 
     public function httpRequest($service, $endpoint, $duration)

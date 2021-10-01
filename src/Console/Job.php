@@ -3,21 +3,19 @@
 namespace Greensight\LaravelTelemetry\Console;
 
 use Greensight\LaravelTelemetry\Metrics;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
 
-abstract class Command extends \Illuminate\Console\Command
+abstract class Job
 {
-    public function execute(InputInterface $input, OutputInterface $output)
+    public function handle()
     {
         $start = microtime(true);
-        $returnCode = parent::execute($input, $output);
+        $result = $this->run();
         $duration = microtime(true) - $start;
 
         if (Metrics::cliMetricsEnabled()) {
             try {
                 $metrics = Metrics::getInstance();
-                $metrics->mainCliTransaction($duration);
+                $metrics->mainQueueTransaction(static::class, $duration);
 
                 $metrics->pushMetrics();
             } catch (\Throwable $e) {
@@ -25,6 +23,11 @@ abstract class Command extends \Illuminate\Console\Command
             }
         }
 
-        return $returnCode;
+        return $result;
+    }
+
+    public function run(): mixed
+    {
+        return true;
     }
 }
