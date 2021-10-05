@@ -1,13 +1,15 @@
 # Laravel telemetry
 
-`Deprecated, use https://github.com/ensi-platform/laravel-telemetry instead`
-
 Пакет для сбора метрик и отправки их в prometheus
 
-## Установка
+## Installation
 
-1. `composer require greensight/laravel-telemetry`
+1. `composer require ensi/laravel-telemetry`
 
-## Лицензия
+## Security Vulnerabilities
 
-[The MIT License (MIT)](LICENSE.md).
+Please review [our security policy](../../security/policy) on how to report security vulnerabilities.
+
+## License
+
+The MIT License (MIT). Please see [License File](LICENSE.md) for more information.

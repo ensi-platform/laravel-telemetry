@@ -1,8 +1,8 @@
 <?php
 
-namespace Greensight\LaravelTelemetry\Http;
+namespace Ensi\LaravelTelemetry\Http;
 
-use Greensight\LaravelTelemetry\Metrics;
+use Ensi\LaravelTelemetry\Metrics;
 use Psr\Http\Message\RequestInterface;
 
 class GuzzleHandler

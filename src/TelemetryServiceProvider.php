@@ -1,8 +1,8 @@
 <?php
 
-namespace Greensight\LaravelTelemetry;
+namespace Ensi\LaravelTelemetry;
 
-use Greensight\LaravelTelemetry\Controllers\TelemetryController;
+use Ensi\LaravelTelemetry\Controllers\TelemetryController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
