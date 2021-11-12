@@ -1,6 +1,6 @@
 <?php
 
-namespace Greensight\LaravelTelemetry;
+namespace Ensi\LaravelTelemetry;
 
 use Illuminate\Support\Facades\Route;
 use Prometheus\CollectorRegistry;

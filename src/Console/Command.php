@@ -1,8 +1,8 @@
 <?php
 
-namespace Greensight\LaravelTelemetry\Console;
+namespace Ensi\LaravelTelemetry\Console;
 
-use Greensight\LaravelTelemetry\Metrics;
+use Ensi\LaravelTelemetry\Metrics;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 

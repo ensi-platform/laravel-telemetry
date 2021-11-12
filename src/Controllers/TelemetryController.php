@@ -1,8 +1,8 @@
 <?php
 
-namespace Greensight\LaravelTelemetry\Controllers;
+namespace Ensi\LaravelTelemetry\Controllers;
 
-use Greensight\LaravelTelemetry\Metrics;
+use Ensi\LaravelTelemetry\Metrics;
 use Illuminate\Http\Response;
 use Prometheus\RenderTextFormat;
 

@@ -1,5 +1,5 @@
 {
-    "name": "greensight/laravel-telemetry",
+    "name": "ensi/laravel-telemetry",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -17,7 +17,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Greensight\\LaravelTelemetry\\": "src/"
+            "Ensi\\LaravelTelemetry\\": "src/"
         }
     },
     "require-dev": {
@@ -32,7 +32,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Greensight\\LaravelTelemetry\\TelemetryServiceProvider"
+                "Ensi\\LaravelTelemetry\\TelemetryServiceProvider"
             ]
         }
     }
