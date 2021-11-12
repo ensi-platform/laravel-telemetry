@@ -38,15 +38,15 @@ class Metrics
 
     public static function cliMetricsEnabled(): bool
     {
-        return !!config('telemetry.redis-host');
+        return config('telemetry.background-metrics.enabled');
     }
 
     public function __construct()
     {
         if (php_sapi_name() == "cli" && self::cliMetricsEnabled()) {
             $metricsStorage = new Redis([
-                'host' => config('telemetry.redis-host'),
-                'port' => config('telemetry.redis-port'),
+                'host' => config('telemetry.background-metrics.redis-host'),
+                'port' => config('telemetry.background-metrics.redis-port'),
             ]);
         } else {
             $metricsStorage = new APC();
@@ -62,14 +62,13 @@ class Metrics
 
     public function pushMetrics(): void
     {
-        $gatewayHost = config('telemetry.push-gateway');
-        if (!$gatewayHost) return;
+        $gatewayHost = config('telemetry.background-metrics.push-gateway');
 
         $pushGateway = new PushGateway($gatewayHost);
         $pushGateway->push($this->prom, 'app_cli', ['app_name' => config('app.name')]);
     }
 
-    public function setTxnId(string $txnId): void
+    public function setTxnId(?string $txnId): void
     {
         $this->txnId = $txnId;
     }
@@ -99,7 +98,7 @@ class Metrics
     public function httpInRequest($duration, $statusCode): void
     {
         $txnId = $this->getTxnId();
-        if (in_array($txnId, config('telemetry.http_in_endpoints_ignore'))) {
+        if (in_array($txnId, config('telemetry.http-in-endpoints-ignore'))) {
             return;
         }
 
@@ -119,13 +118,13 @@ class Metrics
         );
         $totalDuration->incBy($duration, [$txnId, $statusCode]);
 
-        if (config('telemetry.http_in_histogram.enabled')) {
+        if (config('telemetry.http-in-histogram.enabled')) {
             $histogram = $this->prom->getOrRegisterHistogram(
                 config('telemetry.namespace'),
                 "http_in_requests_histogram_seconds",
                 "Http in requests histogram",
                 [],
-                config('telemetry.http_in_histogram.buckets'),
+                config('telemetry.http-in-histogram.buckets'),
             );
             $histogram->observe($duration);
         }
@@ -189,13 +188,13 @@ class Metrics
         );
         $totalDuration->incBy($duration, [$txnId, $service, $endpoint]);
 
-        if (config('telemetry.http_out_histogram.enabled')) {
+        if (config('telemetry.http-out-histogram.enabled')) {
             $histogram = $this->prom->getOrRegisterHistogram(
                 config('telemetry.namespace'),
                 "http_out_requests_histogram_seconds",
                 "Http out requests histogram",
                 [],
-                config('telemetry.http_out_histogram.buckets'),
+                config('telemetry.http-out-histogram.buckets'),
             );
             $histogram->observe($duration);
         }
@@ -223,13 +222,13 @@ class Metrics
         );
         $totalDuration->incBy($durationSeconds, [$txnId, $query]);
 
-        if (config('telemetry.db_query_histogram.enabled')) {
+        if (config('telemetry.db-query-histogram.enabled')) {
             $histogram = $this->prom->getOrRegisterHistogram(
                 config('telemetry.namespace'),
-                "db_query_histogram_seconds",
+                "db-query-histogram_seconds",
                 "Database queries duration histogram",
                 [],
-                config('telemetry.db_query_histogram.buckets'),
+                config('telemetry.db-query-histogram.buckets'),
             );
             $histogram->observe($durationSeconds);
         }
