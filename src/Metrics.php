@@ -8,6 +8,7 @@ use Prometheus\RenderTextFormat;
 use Prometheus\Storage\APC;
 use Prometheus\Storage\Redis;
 use PrometheusPushGateway\PushGateway;
+use Throwable;
 
 class Metrics
 {
@@ -65,18 +66,19 @@ class Metrics
         if (!$gatewayHost) return;
 
         $pushGateway = new PushGateway($gatewayHost);
-        $pushGateway->push($this->prom, 'ensi_cli', ['app_name' => config('app.name')]);
+        $pushGateway->push($this->prom, 'app_cli', ['app_name' => config('app.name')]);
     }
 
+    public function setTxnId(string $txnId): void
+    {
+        $this->txnId = $txnId;
+    }
     public function getTxnId(): string
     {
         if (!$this->txnId) {
             if (php_sapi_name() == "cli") {
-                if ($_SERVER['argv'][0] == 'artisan' && isset($_SERVER['argv'][1])) {
-                    $this->txnId = $_SERVER['argv'][1];
-                } else {
-                    $this->txnId = 'undefined cli';
-                }
+                # in cli commands and queue jobs transaction name is always set explicit
+                $this->txnId = 'undefined_cli';
             } else {
                 $laravelRoute = Route::current();
                 if ($laravelRoute) {
@@ -85,7 +87,7 @@ class Metrics
                     if (isset($_SERVER['REQUEST_METHOD']) && isset($_SERVER['REQUEST_URI'])) {
                         $this->txnId = $_SERVER['REQUEST_METHOD'] . ' ' . self::normalizeHttpUri($_SERVER['REQUEST_URI']);
                     } else {
-                        $this->txnId = 'undefined web';
+                        $this->txnId = 'undefined_web';
                     }
                 }
             }
@@ -94,115 +96,166 @@ class Metrics
         return $this->txnId;
     }
 
-    public function mainWebTransaction($duration, $statusCode): void
+    public function httpInRequest($duration, $statusCode): void
     {
         $txnId = $this->getTxnId();
-        $summary = $this->prom->getOrRegisterSummary(
-            config('telemetry.namespace'),
-            "http_perc",
-            'Request duration, s',
-            ["txnId"],
-            config('telemetry.http_percentile_window'),
-            json_decode(config('telemetry.http_percentiles')),
-        );
-        $summary->observe($duration, [$txnId]);
+        if (in_array($txnId, config('telemetry.http_in_endpoints_ignore'))) {
+            return;
+        }
 
-        $counter = $this->prom->getOrRegisterCounter(
+        $totalCount = $this->prom->getOrRegisterCounter(
             config('telemetry.namespace'),
-            "http",
-            "Request code count",
+            "http_in_requests_total",
+            "Http in requests count",
             ["txnId", "code"]
         );
-        $counter->inc([$txnId, $statusCode]);
+        $totalCount->inc([$txnId, $statusCode]);
+
+        $totalDuration = $this->prom->getOrRegisterCounter(
+            config('telemetry.namespace'),
+            "http_in_requests_seconds_total",
+            "Http in requests duration",
+            ["txnId", "code"]
+        );
+        $totalDuration->incBy($duration, [$txnId, $statusCode]);
+
+        if (config('telemetry.http_in_histogram.enabled')) {
+            $histogram = $this->prom->getOrRegisterHistogram(
+                config('telemetry.namespace'),
+                "http_in_requests_histogram_seconds",
+                "Http in requests histogram",
+                [],
+                config('telemetry.http_in_histogram.buckets'),
+            );
+            $histogram->observe($duration);
+        }
     }
 
-    public function mainCliTransaction($duration)
+    public function consoleCommandExecution($duration): void
     {
         $txnId = $this->getTxnId();
-        $summary = $this->prom->getOrRegisterSummary(
+        $totalCount = $this->prom->getOrRegisterCounter(
             config('telemetry.namespace'),
-            "cli_perc",
-            'Execution time, s',
-            ["txnId"],
-            config('telemetry.cli_percentile_window'),
-            json_decode(config('telemetry.cli_percentiles')),
-        );
-        $summary->observe($duration, [$txnId]);
-
-        $counter = $this->prom->getOrRegisterCounter(
-            config('telemetry.namespace'),
-            "cli",
+            "cli_runs_total",
             "Executions count",
             ["txnId"]
         );
-        $counter->inc([$txnId]);
-    }
+        $totalCount->inc([$txnId]);
 
-    public function mainQueueTransaction($jobName, $duration)
-    {
-        $summary = $this->prom->getOrRegisterSummary(
+        $totalDuration = $this->prom->getOrRegisterCounter(
             config('telemetry.namespace'),
-            "queue_perc",
-            'Execution time, s',
-            ["txnId"],
-            config('telemetry.cli_percentile_window'),
-            json_decode(config('telemetry.cli_percentiles')),
-        );
-        $summary->observe($duration, [$jobName]);
-
-        $counter = $this->prom->getOrRegisterCounter(
-            config('telemetry.namespace'),
-            "queue",
+            "cli_runs_seconds_total",
             "Executions count",
             ["txnId"]
         );
-        $counter->inc([$jobName]);
+        $totalDuration->incBy($duration, [$txnId]);
     }
 
-    public function httpRequest($service, $endpoint, $duration)
+    public function queueJobExecution($jobName, $duration): void
+    {
+        $totalCount = $this->prom->getOrRegisterCounter(
+            config('telemetry.namespace'),
+            "queue_jobs_total",
+            "Queue job executions count",
+            ["txnId"]
+        );
+        $totalCount->inc([$jobName]);
+
+        $totalDuration = $this->prom->getOrRegisterCounter(
+            config('telemetry.namespace'),
+            "queue_jobs_seconds_total",
+            "Queue job executions count",
+            ["txnId"]
+        );
+        $totalDuration->incBy($duration, [$jobName]);
+    }
+
+    public function httpOutRequest($service, $endpoint, $duration): void
     {
         $txnId = $this->getTxnId();
-        $histogram = $this->prom->getOrRegisterSummary(
+        $totalCount = $this->prom->getOrRegisterCounter(
             config('telemetry.namespace'),
-            "out_http_perc",
-            'Request duration, s',
-            ["txnId", "service", "to"],
-            config('telemetry.out_http_percentile_window'),
-            json_decode(config('telemetry.out_http_percentiles')),
-        );
-        $histogram->observe($duration, [$txnId, $service, $endpoint]);
-
-        $counter = $this->prom->getOrRegisterCounter(
-            config('telemetry.namespace'),
-            "out_http",
-            "Request code count",
+            "http_out_requests_total",
+            "Http out requests count",
             ["txnId", "service", "to"]
         );
-        $counter->inc([$txnId, $service, $endpoint]);
+        $totalCount->inc([$txnId, $service, $endpoint]);
+
+        $totalDuration = $this->prom->getOrRegisterCounter(
+            config('telemetry.namespace'),
+            "http_out_requests_seconds_total",
+            "Http out requests duration",
+            ["txnId", "service", "to"]
+        );
+        $totalDuration->incBy($duration, [$txnId, $service, $endpoint]);
+
+        if (config('telemetry.http_out_histogram.enabled')) {
+            $histogram = $this->prom->getOrRegisterHistogram(
+                config('telemetry.namespace'),
+                "http_out_requests_histogram_seconds",
+                "Http out requests histogram",
+                [],
+                config('telemetry.http_out_histogram.buckets'),
+            );
+            $histogram->observe($duration);
+        }
     }
 
-    public function dbQuery($duration, $sql)
+    public function dbQuery($duration, $sql): void
     {
         $txnId = $this->getTxnId();
         $query = self::normalizeDbQuery($sql);
         $durationSeconds = $duration / 1000;
 
-        $histogram = $this->prom->getOrRegisterSummary(
+        $totalCount = $this->prom->getOrRegisterCounter(
             config('telemetry.namespace'),
-            "db_perc",
-            'Database query duration, ms',
+            "db_queries_total",
+            "Database queries count",
             ['txnId', 'query'],
-            config('telemetry.db_percentile_window'),
-            json_decode(config('telemetry.db_percentiles')),
         );
-        $histogram->observe($durationSeconds, [$txnId, $query]);
+        $totalCount->inc([$txnId, $query]);
 
-        $counter = $this->prom->getOrRegisterCounter(
+        $totalDuration = $this->prom->getOrRegisterCounter(
             config('telemetry.namespace'),
-            "db",
-            "Request code count",
+            "db_queries_seconds_total",
+            "Database queries duration",
             ['txnId', 'query'],
         );
-        $counter->inc([$txnId, $query]);
+        $totalDuration->incBy($durationSeconds, [$txnId, $query]);
+
+        if (config('telemetry.db_query_histogram.enabled')) {
+            $histogram = $this->prom->getOrRegisterHistogram(
+                config('telemetry.namespace'),
+                "db_query_histogram_seconds",
+                "Database queries duration histogram",
+                [],
+                config('telemetry.db_query_histogram.buckets'),
+            );
+            $histogram->observe($durationSeconds);
+        }
+    }
+
+    public function unhandledException(Throwable $e): void
+    {
+        $totalCount = $this->prom->getOrRegisterCounter(
+            config('telemetry.namespace'),
+            'errors_total',
+            'Unhandled exceptions count',
+            ['txnId'],
+        );
+
+        $txnId = $this->getTxnId();
+        $totalCount->inc([$txnId]);
+    }
+
+    public function up(): void
+    {
+        $gauge = $this->prom->getOrRegisterGauge(
+            config('telemetry.namespace'),
+            'up',
+            'App is up'
+        );
+
+        $gauge->set(1);
     }
 }

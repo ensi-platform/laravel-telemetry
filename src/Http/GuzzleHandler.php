@@ -16,7 +16,7 @@ class GuzzleHandler
                 $duration = microtime(true) - $start;
 
                 $endpoint = Metrics::normalizeHttpUri($request->getUri()->getPath());
-                Metrics::getInstance()->httpRequest($request->getUri()->getHost(),$endpoint, $duration);
+                Metrics::getInstance()->httpOutRequest($request->getUri()->getHost(),$endpoint, $duration);
 
                 return $response;
             };

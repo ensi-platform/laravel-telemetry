@@ -8,26 +8,25 @@ abstract class Job
 {
     public function handle()
     {
+        $metrics = Metrics::getInstance();
+        $metrics->setTxnId(static::class);
+
         $start = microtime(true);
         $result = $this->run();
         $duration = microtime(true) - $start;
 
         if (Metrics::cliMetricsEnabled()) {
             try {
-                $metrics = Metrics::getInstance();
-                $metrics->mainQueueTransaction(static::class, $duration);
-
+                $metrics->queueJobExecution(static::class, $duration);
                 $metrics->pushMetrics();
             } catch (\Throwable $e) {
                 logger()->error('Exception while metrics processing', ['exception' => $e]);
             }
         }
+        $metrics->setTxnId(null);
 
         return $result;
     }
 
-    public function run(): mixed
-    {
-        return true;
-    }
+    public abstract function run(): mixed;
 }

@@ -2,21 +2,26 @@
 
 return [
     'metrics-route' => '/metrics',
-    'namespace' => env('TELEMETRY_NAMESPACE', 'laravel_app'),
+    'namespace' => env('TELEMETRY_NAMESPACE', 'app'),
 
     'push-gateway' => env('TELEMETRY_PUSH_GATEWAY', 'http://localhost:9091'),
-    'redis-host' => env('TELEMETRY_REDIS_HOST'),
+    'redis-host' => env('TELEMETRY_REDIS_HOST', '127.0.0.1'),
     'redis-port' => env('TELEMETRY_REDIS_PORT', '6379'),
 
-    'http_percentiles' => env("TELEMETRY_HTTP_PERCENTILES", '[0.5, 0.95, 0.99]'),
-    'http_percentile_window' => env("TELEMETRY_HTTP_PERCENTILE_WINDOW", 60),
+    'http_in_endpoints_ignore' => ['metrics'],
 
-    'cli_percentiles' => env("TELEMETRY_CLI_PERCENTILES", '[0.5, 0.95, 0.99]'),
-    'cli_percentile_window' => env("TELEMETRY_CLI_PERCENTILE_WINDOW", 60),
+    'http_in_histogram' => [
+        'enabled' => true,
+        'buckets' => [0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024]
+    ],
 
-    'out_http_percentiles' => env("TELEMETRY_OUT_HTTP_PERCENTILES", '[0.5, 0.95, 0.99]'),
-    'out_http_percentile_window' => env("TELEMETRY_OUT_HTTP_PERCENTILE_WINDOW", 60),
+    'http_out_histogram' => [
+        'enabled' => true,
+        'buckets' => [0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024]
+    ],
 
-    'db_percentiles' => env("TELEMETRY_DB_PERCENTILES", '[0.5, 0.95, 0.99]'),
-    'db_percentile_window' => env("TELEMETRY_DB_PERCENTILE_WINDOW", 60),
+    'db_query_histogram' => [
+        'enabled' => true,
+        'buckets' => [0.001, 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024]
+    ]
 ];
