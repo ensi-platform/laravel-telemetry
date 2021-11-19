@@ -225,7 +225,7 @@ class Metrics
         if (config('telemetry.db-query-histogram.enabled')) {
             $histogram = $this->prom->getOrRegisterHistogram(
                 config('telemetry.namespace'),
-                "db-query-histogram_seconds",
+                "db_query_histogram_seconds",
                 "Database queries duration histogram",
                 [],
                 config('telemetry.db-query-histogram.buckets'),
