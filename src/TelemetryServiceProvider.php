@@ -2,8 +2,10 @@
 
 namespace Ensi\LaravelTelemetry;
 
+use Ensi\LaravelTelemetry\Console\CliTelemetryEvensSubscriber;
 use Ensi\LaravelTelemetry\Controllers\TelemetryController;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -27,5 +29,7 @@ class TelemetryServiceProvider extends ServiceProvider
         DB::listen(function ($query) {
             Metrics::getInstance()->dbQuery($query->time, $query->sql);
         });
+
+        Event::subscribe(new CliTelemetryEvensSubscriber());
     }
 }

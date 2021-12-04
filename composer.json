@@ -11,6 +11,7 @@
     ],
     "require": {
         "php": "^8.0",
+        "ext-apcu": "*",
         "psr/http-message": "^1.0",
         "promphp/prometheus_client_php": "^2.3",
         "promphp/prometheus_push_gateway_php": "^1.1"

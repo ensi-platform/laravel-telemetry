@@ -4,29 +4,25 @@ namespace Ensi\LaravelTelemetry\Console;
 
 use Ensi\LaravelTelemetry\Metrics;
 
-abstract class Job
+class TelemetryJobMiddleware
 {
-    public function handle()
+    public function handle($job, $next)
     {
         $metrics = Metrics::getInstance();
-        $metrics->setTxnId(static::class);
+        $metrics->setTxnId($job::class);
 
         $start = microtime(true);
-        $result = $this->run();
+        $next($job);
         $duration = microtime(true) - $start;
 
         if (Metrics::cliMetricsEnabled()) {
             try {
-                $metrics->queueJobExecution(static::class, $duration);
+                $metrics->queueJobExecution($job::class, $duration);
                 $metrics->pushMetrics();
             } catch (\Throwable $e) {
                 logger()->error('Exception while metrics processing', ['exception' => $e]);
             }
         }
         $metrics->setTxnId(null);
-
-        return $result;
     }
-
-    public abstract function run(): mixed;
 }

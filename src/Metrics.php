@@ -13,6 +13,7 @@ use Throwable;
 class Metrics
 {
     private static ?Metrics $instance = null;
+    private static array $commandStartTime = [];
 
     private CollectorRegistry $prom;
     private ?string $txnId = null;
@@ -39,6 +40,20 @@ class Metrics
     public static function cliMetricsEnabled(): bool
     {
         return config('telemetry.background-metrics.enabled');
+    }
+
+    public static function setCommandStartTime(string $name): void
+    {
+        self::$commandStartTime[$name] = microtime(true);
+    }
+
+    public static function getCommandExecutionDuration(string $name): float
+    {
+        $startTime = self::$commandStartTime[$name];
+        if ($startTime) {
+            return microtime(true) - $startTime;
+        }
+        return 0;
     }
 
     public function __construct()

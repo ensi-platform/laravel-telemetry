@@ -11,26 +11,43 @@
 composer require ensi/laravel-telemetry
 ```
 
-2. Регистрация сервиса в config/app.php
+2. Регистрация провайдера телеметрии: 
 ```
+# config/app.php
 'providers' => [
     Ensi\LaravelTelemetry\TelemetryServiceProvider::class,
 ]
 ```
-3. Установка счётчика входящих http запросов в public/index.php
-Необходимо добавить код в самый конец файла.
+3. Установка счётчика входящих http запросов.
+Необходимо добавить http middleware:
 ```
-Metrics::getInstance()->httpInRequest(
-    microtime(true) - LARAVEL_START,
-    $response->getStatusCode()
-);
+# app/Http/Kernel.php
+protected $middleware = [
+    \Ensi\LaravelTelemetry\Http\TelemetryMiddleware::class,
+];
 ```
-4. Установка счётчика выполнения консольных команд.
-Необходимо унаследовать свои консольные команды от `Ensi\LaravelTelemetry\Console\Command`
-5. Установка счётчика выполенения заданий очереди.
-Необходимо унаследовать свои задания от `Ensi\LaravelTelemetry\Console\Job` и использовать метод `run()` вместо `handle()`.
-6. Установка счётчика исходящих http запросов.
+4. Установка счётчика выполенения заданий очереди.
+Необходимо добавить queue job middleware в классе вашего job:
+```
+# app/Jobs/SomeYourJob.php
+public function middleware()
+{
+    return [
+        new Ensi\LaravelTelemetry\Console\TelemetryJobMiddleware(),
+    ];
+}
+```
+5. Установка счётчика исходящих http запросов.
 Метод `Ensi\LaravelTelemetry\Http\GuzzleHandler::middleware()` возвращает middleware для guzzle, который вы можете использовать при настройке http клиента.
+```
+$stack = new HandlerStack();
+$stack->setHandler(new CurlHandler());
+
+$stack->push(\Ensi\LaravelTelemetry\Http\GuzzleHandler::middleware());
+
+$client = new Client(['handler' => $stack]);
+$client->request('GET', 'https://external.service.example.com');
+```
 
 ## Configuration
 
