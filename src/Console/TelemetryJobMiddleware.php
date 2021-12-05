@@ -3,28 +3,26 @@
 namespace Ensi\LaravelTelemetry\Console;
 
 use Ensi\LaravelTelemetry\Metrics;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
 
-abstract class Command extends \Illuminate\Console\Command
+class TelemetryJobMiddleware
 {
-    public function execute(InputInterface $input, OutputInterface $output)
+    public function handle($job, $next)
     {
+        $metrics = Metrics::getInstance();
+        $metrics->setTxnId($job::class);
+
         $start = microtime(true);
-        $returnCode = parent::execute($input, $output);
+        $next($job);
         $duration = microtime(true) - $start;
 
         if (Metrics::cliMetricsEnabled()) {
             try {
-                $metrics = Metrics::getInstance();
-                $metrics->mainCliTransaction($duration);
-
+                $metrics->queueJobExecution($job::class, $duration);
                 $metrics->pushMetrics();
             } catch (\Throwable $e) {
                 logger()->error('Exception while metrics processing', ['exception' => $e]);
             }
         }
-
-        return $returnCode;
+        $metrics->setTxnId(null);
     }
 }
