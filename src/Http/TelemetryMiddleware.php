@@ -9,12 +9,11 @@ use Illuminate\Http\Request;
 class TelemetryMiddleware
 {
     public function handle(Request $request, Closure $next) {
-
+        $startTime = defined('LARAVEL_START') ? LARAVEL_START : microtime(true);
         $response = $next($request);
 
-        /** @noinspection PhpUndefinedConstantInspection */
         Metrics::getInstance()->httpInRequest(
-            microtime(true) - LARAVEL_START,
+            microtime(true) - $startTime,
             $response->getStatusCode()
         );
 
