@@ -10,6 +10,9 @@ class CliTelemetryEvensSubscriber
 {
     public function handleFinish(CommandFinished $event)
     {
+        if (!$event->command) {
+            return;
+        }
         $duration = Metrics::getCommandExecutionDuration($event->command);
         $metrics = Metrics::getInstance();
         if (Metrics::cliMetricsEnabled()) {
@@ -26,6 +29,9 @@ class CliTelemetryEvensSubscriber
 
     public function handleStart(CommandStarting $event)
     {
+        if (!$event->command) {
+            return;
+        }
         $metrics = Metrics::getInstance();
         $metrics->setTxnId($event->command);
         Metrics::setCommandStartTime($event->command);
