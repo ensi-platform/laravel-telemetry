@@ -14,6 +14,8 @@ class Metrics
 {
     private static ?Metrics $instance = null;
     private static array $commandStartTime = [];
+    private array $httpOutTimes = [];
+    private float $dbOutTimes = 0;
 
     private CollectorRegistry $prom;
     private ?string $txnId = null;
@@ -87,6 +89,7 @@ class Metrics
     {
         $this->txnId = $txnId;
     }
+
     public function getTxnId(): string
     {
         if (!$this->txnId) {
@@ -96,7 +99,7 @@ class Metrics
             } else {
                 $laravelRoute = Route::current();
                 if ($laravelRoute) {
-                    $this->txnId = $laravelRoute->uri;
+                    $this->txnId = $laravelRoute->methods[0] . ' ' . $laravelRoute->uri;
                 } else {
                     if (isset($_SERVER['REQUEST_METHOD']) && isset($_SERVER['REQUEST_URI'])) {
                         $this->txnId = $_SERVER['REQUEST_METHOD'] . ' ' . self::normalizeHttpUri($_SERVER['REQUEST_URI']);
@@ -108,6 +111,21 @@ class Metrics
 
         }
         return $this->txnId;
+    }
+
+    public function collectWebExternalTime(float $start, float $end): void
+    {
+        $index = count($this->httpOutTimes) - 1;
+        if ($index >= 0) {
+            $oldEnd = $this->httpOutTimes[$index][1];
+            if ($start < $oldEnd) {
+                $this->httpOutTimes[$index][1] = $end;
+            } else {
+                $this->httpOutTimes[] = [$start, $end];
+            }
+        } else {
+            $this->httpOutTimes[] = [$start, $end];
+        }
     }
 
     public function httpInRequest($duration, $statusCode): void
@@ -125,13 +143,17 @@ class Metrics
         );
         $totalCount->inc([$txnId, $statusCode]);
 
+        $webExternalDuration = $this->webExternalDuration();
+        $phpDuration = $duration - $webExternalDuration - $this->dbOutTimes;
         $totalDuration = $this->prom->getOrRegisterCounter(
             config('telemetry.namespace'),
             "http_in_requests_seconds_total",
             "Http in requests duration",
-            ["txnId", "code"]
+            ["txnId", "type"]
         );
-        $totalDuration->incBy($duration, [$txnId, $statusCode]);
+        $totalDuration->incBy($phpDuration, [$txnId, 'php']);
+        $totalDuration->incBy($webExternalDuration, [$txnId, 'web_external']);
+        $totalDuration->incBy($this->dbOutTimes, [$txnId, 'db']);
 
         if (config('telemetry.http-in-histogram.enabled')) {
             $histogram = $this->prom->getOrRegisterHistogram(
@@ -221,6 +243,8 @@ class Metrics
         $query = self::normalizeDbQuery($sql);
         $durationSeconds = $duration / 1000;
 
+        $this->dbOutTimes += $durationSeconds;
+
         $totalCount = $this->prom->getOrRegisterCounter(
             config('telemetry.namespace'),
             "db_queries_total",
@@ -271,5 +295,14 @@ class Metrics
         );
 
         $gauge->set(1);
+    }
+
+    protected function webExternalDuration(): float
+    {
+        $sum = 0;
+        foreach ($this->httpOutTimes as [$start, $end]) {
+            $sum += $end - $start;
+        }
+        return $sum;
     }
 }

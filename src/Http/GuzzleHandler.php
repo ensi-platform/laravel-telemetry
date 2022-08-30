@@ -30,9 +30,12 @@ class GuzzleHandler
 
     public static function handleResponse($start, $request)
     {
-        $duration = microtime(true) - $start;
+        $end = microtime(true);
+        $duration = $end - $start;
 
         $endpoint = Metrics::normalizeHttpUri($request->getUri()->getPath());
-        Metrics::getInstance()->httpOutRequest($request->getUri()->getHost(),$endpoint, $duration);
+        $metrics = Metrics::getInstance();
+        $metrics->httpOutRequest($request->getUri()->getHost(),$endpoint, $duration);
+        $metrics->collectWebExternalTime($start, $end);
     }
 }
