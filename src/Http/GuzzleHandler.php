@@ -4,6 +4,7 @@ namespace Ensi\LaravelTelemetry\Http;
 
 use Ensi\LaravelTelemetry\Metrics;
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Promise\RejectedPromise;
 use Psr\Http\Message\RequestInterface;
 
 class GuzzleHandler
@@ -18,6 +19,9 @@ class GuzzleHandler
                     return $response->then(function ($result) use ($start, $request) {
                         self::handleResponse($start, $request);
                         return $result;
+                    })->otherwise(function ($reason) use ($start, $request) {
+                        self::handleResponse($start, $request);
+                        return new RejectedPromise($reason);
                     });
                 } else {
                     self::handleResponse($start, $request);

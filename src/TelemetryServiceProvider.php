@@ -4,6 +4,7 @@ namespace Ensi\LaravelTelemetry;
 
 use Ensi\LaravelTelemetry\Console\CliTelemetryEvensSubscriber;
 use Ensi\LaravelTelemetry\Controllers\TelemetryController;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
@@ -15,6 +16,10 @@ class TelemetryServiceProvider extends ServiceProvider
     {
         $this->app->bind(Metrics::class, function () {
             return Metrics::getInstance();
+        });
+
+        $this->app['events']->listen(MessageLogged::class, function (MessageLogged $event) {
+            Metrics::getInstance()->logMessages($event);
         });
     }
 

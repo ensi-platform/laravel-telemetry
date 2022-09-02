@@ -2,6 +2,7 @@
 
 namespace Ensi\LaravelTelemetry;
 
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Route;
 use Prometheus\CollectorRegistry;
 use Prometheus\RenderTextFormat;
@@ -31,12 +32,24 @@ class Metrics
 
     public static function normalizeHttpUri(string $uri): string
     {
-        return preg_replace(["/\?.*/", "/\/\d+\//"], ["", "/{id}/"], $uri);
+        foreach (config('telemetry.http-replace') as $pattern => $replacement) {
+            $uri = preg_replace($pattern, $replacement, $uri);
+        }
+        return $uri;
     }
 
     public static function normalizeDbQuery(string $query): string
     {
-        return preg_replace("/\?,\s?/", "", $query);
+        $patterns = [
+            "/\?,\s?/" => "",
+            "/limit \d+/" => "limit ?",
+            "/offset \d+/" => "offset ?",
+            "/in ([^)]+)/" => "in (?)"
+        ];
+        foreach ($patterns as $pattern => $replacement) {
+            $query = preg_replace($pattern, $replacement, $query);
+        }
+        return $query;
     }
 
     public static function cliMetricsEnabled(): bool
@@ -68,7 +81,7 @@ class Metrics
         } else {
             $metricsStorage = new APC();
         }
-        $this->prom = new CollectorRegistry($metricsStorage);
+        $this->prom = new CollectorRegistry($metricsStorage, false);
     }
 
     public function dumpTxt(): string
@@ -99,10 +112,10 @@ class Metrics
             } else {
                 $laravelRoute = Route::current();
                 if ($laravelRoute) {
-                    $this->txnId = $laravelRoute->methods[0] . ' ' . $laravelRoute->uri;
+                    $this->txnId = $laravelRoute->methods[0] . ' /' . ltrim($laravelRoute->uri, '/');
                 } else {
                     if (isset($_SERVER['REQUEST_METHOD']) && isset($_SERVER['REQUEST_URI'])) {
-                        $this->txnId = $_SERVER['REQUEST_METHOD'] . ' ' . self::normalizeHttpUri($_SERVER['REQUEST_URI']);
+                        $this->txnId = $_SERVER['REQUEST_METHOD'] . ' /' . ltrim(self::normalizeHttpUri($_SERVER['REQUEST_URI']), '/');
                     } else {
                         $this->txnId = 'undefined_web';
                     }
@@ -167,22 +180,22 @@ class Metrics
         }
     }
 
-    public function consoleCommandExecution($duration): void
+    public function consoleCommandExecution(float $duration, bool $commandFailed): void
     {
         $txnId = $this->getTxnId();
         $totalCount = $this->prom->getOrRegisterCounter(
             config('telemetry.namespace'),
             "cli_runs_total",
             "Executions count",
-            ["txnId"]
+            ["txnId", "status"]
         );
-        $totalCount->inc([$txnId]);
+        $totalCount->inc([$txnId, $commandFailed ? 'fail' : 'success']);
 
         $totalDuration = $this->prom->getOrRegisterCounter(
             config('telemetry.namespace'),
             "cli_runs_seconds_total",
             "Executions count",
-            ["txnId"]
+            ["txnId",]
         );
         $totalDuration->incBy($duration, [$txnId]);
     }
@@ -209,6 +222,13 @@ class Metrics
     public function httpOutRequest($service, $endpoint, $duration): void
     {
         $txnId = $this->getTxnId();
+        foreach (config('telemetry.service-prefixes') as $servicePrefix) {
+            if (str_starts_with($endpoint, $servicePrefix)) {
+                $service .= $servicePrefix;
+                $endpoint = str_replace($servicePrefix, "", $endpoint);
+            }
+        }
+
         $totalCount = $this->prom->getOrRegisterCounter(
             config('telemetry.namespace'),
             "http_out_requests_total",
@@ -224,17 +244,6 @@ class Metrics
             ["txnId", "service", "to"]
         );
         $totalDuration->incBy($duration, [$txnId, $service, $endpoint]);
-
-        if (config('telemetry.http-out-histogram.enabled')) {
-            $histogram = $this->prom->getOrRegisterHistogram(
-                config('telemetry.namespace'),
-                "http_out_requests_histogram_seconds",
-                "Http out requests histogram",
-                [],
-                config('telemetry.http-out-histogram.buckets'),
-            );
-            $histogram->observe($duration);
-        }
     }
 
     public function dbQuery($duration, $sql): void
@@ -260,17 +269,19 @@ class Metrics
             ['txnId', 'query'],
         );
         $totalDuration->incBy($durationSeconds, [$txnId, $query]);
+    }
 
-        if (config('telemetry.db-query-histogram.enabled')) {
-            $histogram = $this->prom->getOrRegisterHistogram(
-                config('telemetry.namespace'),
-                "db_query_histogram_seconds",
-                "Database queries duration histogram",
-                [],
-                config('telemetry.db-query-histogram.buckets'),
-            );
-            $histogram->observe($durationSeconds);
-        }
+    public function logMessages(MessageLogged $event): void
+    {
+        $totalCount = $this->prom->getOrRegisterCounter(
+            config('telemetry.namespace'),
+            'log_messages',
+            'Log messages count',
+            ['txnId', 'level'],
+        );
+
+        $txnId = $this->getTxnId();
+        $totalCount->inc([$txnId, $event->level]);
     }
 
     public function unhandledException(Throwable $e): void

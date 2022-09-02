@@ -14,11 +14,12 @@ class CliTelemetryEvensSubscriber
             return;
         }
         $duration = Metrics::getCommandExecutionDuration($event->command);
+        $commandFailed = $event->exitCode > 0;
         $metrics = Metrics::getInstance();
         if (Metrics::cliMetricsEnabled()) {
             try {
                 $metrics->setTxnId($event->command);
-                $metrics->consoleCommandExecution($duration);
+                $metrics->consoleCommandExecution($duration, $commandFailed);
                 $metrics->pushMetrics();
             } catch (\Throwable $e) {
                 logger()->error('Exception while metrics processing', ['exception' => $e]);
